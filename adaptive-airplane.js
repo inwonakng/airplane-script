@@ -1,136 +1,42 @@
 window.onload = chooseOptions
-var options_set = false
-var suggestion_on = true
-var ground_triple = true
-var tripdexes = []
-var types = []
-var api_address = 'http://127.0.0.1:8000/api/survey'
 
-gtype = genRanNums(16, 1)[0]
-
-for (i = 0; i < 12; i++) {
-    types.push('pair')
-}
-for (i = 0; i < 3; i++) {
-    types.push('triple')
-}
-types.push('tripset' + gtype)
-types.push('titanic')
-
-console.log(types)
+var api_address = 'http://127.0.0.1:8000/api/'
+var cur_index = 0
+var userkey = get_randomkey()
+userkey = 'TESTING'
+maxlen = 18
 
 function chooseOptions() {
-    //  set_text('q0',0,random_story)
-
-    pair_nums = genRanNums(2000, 12)
-    triple_nums = genRanNums(1000, 4)
-
-    tt = shuffle(types)
-
-    counters = { 'pair': 0, 'triple': 0 }
-
-    tripleset = genRanNums(4, 1)[0]
-    idx = 0
-    for (k = 0; k < tt.length; k++) {
-
-        if (tt[k] == 'pair') {
-            rindex = pair_nums[counters[tt[k]]]
-        } else if (tt[k] == 'triple') {
-            rindex = triple_nums[counters[tt[k]]]
-        } else {
-            rindex = 0
-            // if(tt[k].includes('tripset')){
-            //   console.log('special tripset at: ', k)
-            //   idx = k
-            // }
-        }
-        makeq(k, rindex, tt[k])
-        // console.log('type: '+tt[k]+' chosen: '+rindex)
-        if (tt[k] != 'titanic') {
-            counters[tt[k]]++
-        }
-    }
-
     // console.log(counters)
-
     document.getElementById("gender").selectedIndex = 0
     document.getElementById("education").selectedIndex = 0
     document.getElementById("agegroup").selectedIndex = 0
-
-    document.getElementById('scenario_index').innerHTML = '1/' + (types.length + 1)
-
-    options_set = true
-
-    //  use this functions to skip pages to debug
-    //  accept()
-    //  showsurvey()
-
-    //  for(i=0;i<idx;i++){
-    //   next()
-    //  }
+    document.getElementById('scenario_index').innerHTML = '1/' + (maxlen)
 }
-// sample code for fetching 
-fetch(url, {
-    method: 'POST',
-    body: JSON.stringify({
-        'unique_id': 'test_uni',
-        'survey_type': 'pair'
-    })
-}).then(r => r.json()).then(r => console.log(r))
 
 function next() {
-    var questions = []
-    for (i = 0; i < types.length + 1; i++) {
-        questions.push(document.getElementById('q' + i.toString()))
+    // index = 
+    cur_index += 1
+    if (cur_index < 17) {
+        $('.question').hide()
+        makeq(cur_index)
+        document.getElementById('q')
+    } else if (cur_index == 17) {
+        $('.question').hide()
+        $('#q17').show()
+    } else {
+        document.getElementById('nextbtn').disabled = true
     }
-    var show_index
-
-    for (i = 0; i < questions.length; i++) {
-        if (questions[i].style.display != 'none' && i < questions.length - 1) {
-
-            document.getElementById('prompt').style.display = 'block'
-            show_index = i + 2
-            questions[i].style.display = 'none'
-            questions[i + 1].style.display = 'block'
-            document.getElementById('scenario').scrollIntoView()
-            document.getElementById('scenario_index').innerHTML = (show_index).toString() + '/' + (questions.length).toString()
-            document.getElementById('scenario').innerHTML = 'Scenario ' + show_index
-            //  if(i == questions.length-4){ setfeatureq()}
-            if (i == questions.length - 2) {
-                document.getElementById('nextbtn').disabled = true
-                if (suggestion_on) {
-                    document.getElementById('scenario').innerHTML = 'Final Question'
-                    document.getElementById('prompt').style.display = 'none'
-                }
-            }
-            break
-        }
-    }
+    $('#scenario_index').html('1/' + cur_index)
 }
 
 function accept() {
     document.getElementById("consentform").style.display = 'none'
     document.getElementById('survey').style.display = 'block'
-    if (!options_set) {
-        chooseOptions()
-    }
 }
 
 function goback() {
     window.history.back()
-}
-
-function genRanNums(thres, count) {
-    arr = []
-    arr.push(Math.floor(Math.random() * thres))
-    while (arr.length < count) {
-        n = Math.floor(Math.random() * thres)
-        while (arr.includes(n)) {
-            n = Math.floor(Math.random() * thres)
-        }
-        arr.push(n)
-    }
-    return arr
 }
 
 function wordcount(box, vv) {
@@ -146,6 +52,24 @@ function showsurvey() {
     document.getElementById('demographics').style.display = 'none'
     // document.getElementById('attention').style.display='none'
     document.getElementById('realsurvey').style.display = 'block'
+
+    // first send request to server to set things up
+
+    data = {
+        unique_id: 'test_uni',
+        survey_type: 'pair',
+        last_response: last_response,
+    }
+
+    ready = false
+    fetch(api_address+'setup', {
+        method: 'POST',
+        body: JSON.stringify(data)
+    }).then(r => r.json()).then(r => {
+        ready = true
+    })
+
+    make_titanic()
 }
 
 function showacheck() {
@@ -163,31 +87,38 @@ function get_randomkey() {
     return result
 }
 
-/**
-* Shuffles array in place.
-* @param {Array} a items An array containing the items.
-*/
-function shuffle(a) {
-    var j, x, i;
-    for (i = a.length - 1; i > 0; i--) {
-        j = Math.floor(Math.random() * (i + 1));
-        x = a[i];
-        a[i] = a[j];
-        a[j] = x;
+function makeq(index) {
+
+    scores = []
+    for (slider of $('#q' + (index - 1)).find('crowd-slider').toArray()) {
+        scores.push(slider.value)
     }
-    return a;
+    last_response = {
+        scenario: window.last_scenario,
+        response: scores
+    }
+
+    data = {
+        unique_id: 'test_uni',
+        survey_type: 'pair',
+        last_response: last_response,
+    }
+    // call the api to grab a new question
+
+    fetch(api_address+'survey', {
+        method: 'POST',
+        body: JSON.stringify(data)
+    }).then(r => r.json()).then(r => fill_data(r, index))
 }
 
-function makeq(index, randnum, type) {
+function make_titanic() {
+    var titanic_story = [{ "age": "21", "health": "in great health", "gender": "male", "income level": "low", "number of dependents": "0", "survival without jacket": "0%", "survival with jacket": "32%" }, { "age": "32", "health": "in great health", "gender": "male", "income level": "low", "number of dependents": "0", "survival without jacket": "0%", "survival with jacket": "32%" }, { "age": "52", "health": "in great health", "gender": "female", "income level": "high", "number of dependents": "1", "survival without jacket": "0%", "survival with jacket": "32%" }, { "age": "5", "health": "in great health", "gender": "female", "income level": "high", "number of dependents": "0", "survival without jacket": "0%", "survival with jacket": "32%" }]
+    fill_data(titanic_story, 0)
+}
+
+function fill_data(qset, index) {
+    console.log(qset)
     explanation = {
-        // 'age': 'Age of the person',
-        // 'health': 'Health status of the person',
-        // 'gender': 'Gender of the person',
-        // 'income level': 'Income level of the person',
-        // 'education level': 'Highest level of education the person received',
-        // 'number of dependents': 'Number of people the person supports',
-        // 'survival with jacket': 'Survival chance when given the jacket',
-        // 'survival without jacket': 'Survival chance when not given the jacket',
         'age': 'age',
         'health': 'health',
         'gender': 'gender',
@@ -199,31 +130,11 @@ function makeq(index, randnum, type) {
 
     clr = ['red', 'blue', 'green', 'purple']
     ops = ['A', 'B', 'C', 'D']
-    var questions;
-    if (type == 'pair') {
-        questions = pairs_story
-    } else if (type == 'triple') {
-        questions = triples_story
-    } else if (type.includes('tripset')) {
-        questions = eval(type + '_story')
-        randnum = 0
-    } else {
-        questions = titanic_story
-    }
 
     newdiv = document.createElement('div')
     qq = 'q' + index.toString()
     newdiv.id = qq
-    if (index != 0) {
-        newdiv.style.display = 'none'
-    }
-
-    var qset;
-    if (type != 'titanic') {
-        qset = questions[randnum]
-    } else {
-        qset = questions
-    }
+    newdiv.className = 'question'
 
     // if(qset.length != 2){
     comsection = document.createElement('div')
@@ -313,26 +224,8 @@ function makeq(index, randnum, type) {
     tbl = tbl + '</table>'
     section.innerHTML = tbl
     newdiv.appendChild(comsection)
-    // if(type !='pair'){
-    //   newdiv.appendChild(comsection2)}
+
     newdiv.appendChild(section)
-
-    qtype = document.createElement('input')
-    qtype.id = qq + 'type'
-    qtype.name = qtype.id
-    qtype.type = 'text'
-    qtype.style.display = 'none'
-    qtype.value = type
-
-    qop_index = document.createElement('input')
-    qop_index.id = qq + 'optionset'
-    qop_index.name = qop_index.id
-    qop_index.type = 'text'
-    qop_index.style.display = 'none'
-    qop_index.value = randnum.toString()
-
-    newdiv.appendChild(qtype)
-    newdiv.appendChild(qop_index)
 
     // adding stuff into DOM
     document.getElementById('realsurvey').insertBefore(newdiv, document.getElementById('q17'))
