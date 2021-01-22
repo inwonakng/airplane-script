@@ -12,22 +12,23 @@ function chooseOptions() {
     document.getElementById("education").selectedIndex = 0
     document.getElementById("agegroup").selectedIndex = 0
     document.getElementById('scenario_index').innerHTML = '1/' + (maxlen)
+    $('#startloading').hide()
+    $('#questionload').hide()
 }
 
 function next() {
-    // index = 
     cur_index += 1
-    if (cur_index < 17) {
+    if (cur_index < maxlen-1) {
         $('.question').hide()
         makeq(cur_index)
         document.getElementById('q')
-    } else if (cur_index == 17) {
+    } else if (cur_index == maxlen-1) {
         $('.question').hide()
         $('#q17').show()
     } else {
         document.getElementById('nextbtn').disabled = true
     }
-    $('#scenario_index').html('1/' + cur_index)
+    $('#scenario_index').html((cur_index+1)+'/' + maxlen)
 }
 
 function accept() {
@@ -55,21 +56,24 @@ function showsurvey() {
 
     // first send request to server to set things up
 
+    console.log('ok')
     data = {
         unique_id: 'test_uni',
-        survey_type: 'pair',
-        last_response: last_response,
+        survey_type: 'pair'
     }
 
-    ready = false
+    fill_data(get_titanic(), 0)
+    $('#realsurvey').hide()
+
+    $('#startloading').show()
     fetch(api_address+'setup', {
         method: 'POST',
         body: JSON.stringify(data)
     }).then(r => r.json()).then(r => {
-        ready = true
+        window.trip_idx = r['tripset_idx']
+        $('#startloading').hide()
+        $('#realsurvey').show()
     })
-
-    make_titanic()
 }
 
 function showacheck() {
@@ -87,7 +91,25 @@ function get_randomkey() {
     return result
 }
 
+function get_tripset(trip_idx){
+    return {
+        0: [{"age":"8","health":"moderate health problems","gender":"male","income level":"mid","number of dependents":"0","survival without jacket":"19%","survival with jacket":"62%"},{"age":"21","health":"small health problems","gender":"male","income level":"low","number of dependents":"5","survival without jacket":"11%","survival with jacket":"31%"},{"age":"12","health":"moderate health problems","gender":"female","income level":"mid","number of dependents":"0","survival without jacket":"11%","survival with jacket":"16%"}],
+        1: [{"age":"27","health":"moderate health problems","gender":"female","income level":"mid","number of dependents":"0","survival without jacket":"5%","survival with jacket":"42%"},{"age":"32","health":"small health problems","gender":"female","income level":"high","number of dependents":"3","survival without jacket":"2%","survival with jacket":"51%"},{"age":"12","health":"terminally ill(less than 3 years left)","gender":"female","income level":"low","number of dependents":"0","survival without jacket":"11%","survival with jacket":"20%"}],
+        2: [{"age":"5","health":"terminally ill(less than 3 years left)","gender":"female","income level":"low","number of dependents":"1","survival without jacket":"24%","survival with jacket":"29%"},{"age":"52","health":"moderate health problems","gender":"female","income level":"high","number of dependents":"3","survival without jacket":"31%","survival with jacket":"61%"},{"age":"52","health":"moderate health problems","gender":"female","income level":"low","number of dependents":"2","survival without jacket":"5%","survival with jacket":"55%"}],
+        3: [{"age":"21","health":"terminally ill(less than 3 years left)","gender":"female","income level":"high","number of dependents":"5","survival without jacket":"9%","survival with jacket":"55%"},{"age":"21","health":"moderate health problems","gender":"male","income level":"mid","number of dependents":"5","survival without jacket":"26%","survival with jacket":"74%"},{"age":"27","health":"in great health","gender":"male","income level":"high","number of dependents":"5","survival without jacket":"15%","survival with jacket":"63%"}],
+        4: [{"age":"12","health":"in great health","gender":"male","income level":"low","number of dependents":"0","survival without jacket":"31%","survival with jacket":"48%"},{"age":"18","health":"in great health","gender":"male","income level":"mid","number of dependents":"1","survival without jacket":"39%","survival with jacket":"54%"},{"age":"18","health":"moderate health problems","gender":"female","income level":"mid","number of dependents":"2","survival without jacket":"13%","survival with jacket":"44%"}],
+        5: [{"age":"18","health":"terminally ill(less than 3 years left)","gender":"male","income level":"low","number of dependents":"3","survival without jacket":"17%","survival with jacket":"33%"},{"age":"8","health":"small health problems","gender":"male","income level":"mid","number of dependents":"0","survival without jacket":"33%","survival with jacket":"76%"},{"age":"21","health":"terminally ill(less than 3 years left)","gender":"male","income level":"low","number of dependents":"5","survival without jacket":"39%","survival with jacket":"46%"}],
+        6: [{"age":"18","health":"terminally ill(less than 3 years left)","gender":"female","income level":"mid","number of dependents":"0","survival without jacket":"31%","survival with jacket":"41%"},{"age":"32","health":"terminally ill(less than 3 years left)","gender":"female","income level":"high","number of dependents":"0","survival without jacket":"29%","survival with jacket":"79%"},{"age":"8","health":"small health problems","gender":"female","income level":"low","number of dependents":"0","survival without jacket":"37%","survival with jacket":"65%"}],
+        7: [{"age":"23","health":"in great health","gender":"male","income level":"high","number of dependents":"2","survival without jacket":"39%","survival with jacket":"48%"},{"age":"52","health":"in great health","gender":"female","income level":"high","number of dependents":"5","survival without jacket":"15%","survival with jacket":"49%"},{"age":"5","health":"moderate health problems","gender":"male","income level":"high","number of dependents":"1","survival without jacket":"2%","survival with jacket":"32%"}]
+    }[Number(trip_idx)]
+}
+
 function makeq(index) {
+    // for making tripset
+    if(index == 1){
+        fill_data(get_tripset(window.trip_idx),index)
+        return 
+    } 
 
     scores = []
     for (slider of $('#q' + (index - 1)).find('crowd-slider').toArray()) {
@@ -98,25 +120,40 @@ function makeq(index) {
         response: scores
     }
 
+    tscores = []
+    for (slider of $('#q0').find('crowd-slider').toArray()) {
+        tscores.push(slider.value)
+    }
+
+    titanic_response = {
+        scenario: get_titanic(),
+        response: tscores
+    }
+
     data = {
         unique_id: 'test_uni',
         survey_type: 'pair',
         last_response: last_response,
+        titanic_response:titanic_response
     }
     // call the api to grab a new question
-
+    $('#questionload').show()
     fetch(api_address+'survey', {
         method: 'POST',
         body: JSON.stringify(data)
-    }).then(r => r.json()).then(r => fill_data(r, index))
+    }).then(r => r.json()).then(r => {
+        fill_data(r, index)
+        $('#questionload').hide()
+        $('#q'+index).show()
+    })
 }
 
-function make_titanic() {
-    var titanic_story = [{ "age": "21", "health": "in great health", "gender": "male", "income level": "low", "number of dependents": "0", "survival without jacket": "0%", "survival with jacket": "32%" }, { "age": "32", "health": "in great health", "gender": "male", "income level": "low", "number of dependents": "0", "survival without jacket": "0%", "survival with jacket": "32%" }, { "age": "52", "health": "in great health", "gender": "female", "income level": "high", "number of dependents": "1", "survival without jacket": "0%", "survival with jacket": "32%" }, { "age": "5", "health": "in great health", "gender": "female", "income level": "high", "number of dependents": "0", "survival without jacket": "0%", "survival with jacket": "32%" }]
-    fill_data(titanic_story, 0)
+function get_titanic() {
+    return [{ "age": "21", "health": "in great health", "gender": "male", "income level": "low", "number of dependents": "0", "survival without jacket": "0%", "survival with jacket": "32%" }, { "age": "32", "health": "in great health", "gender": "male", "income level": "low", "number of dependents": "0", "survival without jacket": "0%", "survival with jacket": "32%" }, { "age": "52", "health": "in great health", "gender": "female", "income level": "high", "number of dependents": "1", "survival without jacket": "0%", "survival with jacket": "32%" }, { "age": "5", "health": "in great health", "gender": "female", "income level": "high", "number of dependents": "0", "survival without jacket": "0%", "survival with jacket": "32%" }]
 }
 
 function fill_data(qset, index) {
+    window.last_scenario = qset
     console.log(qset)
     explanation = {
         'age': 'age',
